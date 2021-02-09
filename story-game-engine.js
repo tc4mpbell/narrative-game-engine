@@ -8,7 +8,6 @@ Yes, yes it would.
 We need scenes. We need characters. We need conversation.
 
 But how?
-
 */
 
 const { rejects } = require("assert");
@@ -48,15 +47,17 @@ const game = {
       enter: async () => {
         const RIGHT = 400;
         const mrMurraud = new Character({ name: 'Mr. Murraud' })
-        const imogen = new Character({ name: 'Imogen' })
-        const ira = new Character({ name: 'Ira' })
+        const imogen = new Character({ name: 'Imogen 👧🏻' })
+        const ira = new Character({ name: 'Ira 👦🏻' })
 
         mrMurraud.animate("rocking-chair", 10).forever();
         imogen
           .animate("walk-left", 10 /*speed*/)
           .from(RIGHT)
           .to(RIGHT - 100);
+
         wait(1);
+
         ira
           .animate("walk-left", 10 /*speed*/)
           .from(RIGHT)
@@ -127,7 +128,6 @@ const consoleGame = {
 
 const Game = {
   animations: [
-    // functions
     () => {
       // describe image, position, size, etc. transforms
     }
@@ -135,10 +135,7 @@ const Game = {
 
   run: async (scene) => {    
     game.scenes[scene].enter()
-    // setImmediate(() => {
-    //   console.log('im')
-    // })
-
+    
     while(true) {
       const step = game.queue[0]
       if(step) {
@@ -167,9 +164,6 @@ class Character {
   }
 
   async say(words) {
-    // console.log(`${this.name}: ${words}`)
-    // await wait(1)
-
     game.queue.push(async () => {
       console.log(`${this.name}: ${words}`)
     })
