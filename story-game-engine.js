@@ -10,26 +10,12 @@ We need scenes. We need characters. We need conversation.
 But how?
 */
 
-const { rejects } = require("assert");
-const readline = require("readline");
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-const wait = async (time) => {
-  game.queue.push(()=> new Promise((resolve) => {
-    setTimeout(() => {
-      return resolve()
-    }, time * 1000)
-  }))
-}
-
-const game = {
+const gameLogic = {
   title: "Mr. Murraud's Happiest Day",
   beats: {
     TOOK_EGG: false,
   },
+  initialScene: 'house',
   scenes: {
     // Kids enter stage right. Mr Murraud is sitting in his chair smoking a pipe.
     // "Hello?" says Imogen tentatively.
@@ -44,11 +30,11 @@ const game = {
     // [1.TAKE BOX]
     house: {
       bg: ["house.png", "door.png", "desk.png"], // ordered by z-index (farthest to nearest)
-      enter: async () => {
+      enter: async (game) => {
         const RIGHT = 400;
-        const mrMurraud = new Character({ name: 'Mr. Murraud' })
-        const imogen = new Character({ name: 'Imogen 👧🏻' })
-        const ira = new Character({ name: 'Ira 👦🏻' })
+        const mrMurraud = new Character({ game, name: 'Mr. Murraud 👴🏽' })
+        const imogen = new Character({ game, name: 'Imogen 👧🏻' })
+        const ira = new Character({ game, name: 'Ira 👦🏻' })
 
         mrMurraud.animate("rocking-chair", 10).forever();
         imogen
@@ -56,14 +42,14 @@ const game = {
           .from(RIGHT)
           .to(RIGHT - 100);
 
-        wait(1);
+        game.wait(1);
 
         ira
           .animate("walk-left", 10 /*speed*/)
           .from(RIGHT)
           .to(RIGHT - 80);
 
-        if (!game.beats.TOOK_EGG) {
+        if (!gameLogic.beats.TOOK_EGG) {
           imogen.say("...Hello?");
           mrMurraud.say("Ah, children! I've been expecting you!");
           ira.say("Us? Why do we know you?");
@@ -73,7 +59,7 @@ const game = {
             "TAKE BOX": async () => {
               game.say("Imogen takes the box. Inside is a shiny golden egg!");
               game.inventory.add('egg');
-              game.beats.TOOK_EGG = true;
+              gameLogic.beats.TOOK_EGG = true;
               mrMurraud.say("Ahhhh excellent.");
               game.say("The egg suddenly splits open --");
               game.say("-- and inside is the universe.");
@@ -95,66 +81,96 @@ const game = {
       universe: {},
     },
   },
-  buttons: (choices) => {
-    game.queue.push(async () => {
+};
+
+class Game {
+  constructor(game) {
+    this.queue = []
+    this.game = game
+    this.inventory = new Inventory()
+  }
+
+  async start() {
+    const scene = this.game.initialScene
+    this.game.scenes[scene].enter(this)
+    
+    while(true) {
+      const step = this.queue[0]
+      if(step) {
+        try {
+          await step()
+          this.queue.shift()
+        } catch(e) {
+          if(e) console.log("ERROR", e)
+          // repeat step if we rejected
+        }
+      } else {
+        this.done()
+      }
+    }
+  }
+
+  async wait(time) {
+    this.queue.push(()=> new Promise((resolve) => {
+      setTimeout(() => {
+        return resolve()
+      }, time * 1000)
+    }))
+  }
+}
+
+class TerminalGame extends Game {
+  constructor(game) {
+    super(game)
+
+    const readline = require("readline");
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+  }
+
+  done() {
+    this.rl.close()
+    process.exit(0)
+  }
+
+  async say(words) {
+    this.queue.push(async () => {
+      console.log(`///    ${words}    ///`)
+    })
+    this.wait(1)
+  }
+
+  buttons(choices) {
+    this.queue.push(async () => {
       const p = new Promise((resolve, reject) => {
         const btns = Object.keys(choices).join('  -  ')
-        rl.question(btns + ' ', function(choice) {
-          if(choices[choice])
+        this.rl.question(btns + ' ', function(choice) {
+          if(choices[choice]) {
             return resolve(choices[choice]())
-          else
+          } else
             return reject()
         })
       })
 
       return p
     })
-  },
-  inventory: {
-    add: (o)=>{}
-  },
-  say: (words) => {
-    game.queue.push(async () => {
-      console.log(`///    ${words}    ///`)
-    })
-    wait(1)
-  },
-  queue: []
-};
-
-const consoleGame = {
-
+  }
 }
 
-const Game = {
-  animations: [
-    () => {
-      // describe image, position, size, etc. transforms
-    }
-  ],
+class Inventory {
+  constructor() {
+    this.inventory = []
+  }
 
-  run: async (scene) => {    
-    game.scenes[scene].enter()
-    
-    while(true) {
-      const step = game.queue[0]
-      if(step) {
-        try {
-          await step()
-          game.queue.shift()
-        } catch(e) {
-          // repeat step if we rejected
-        }
-      } else {
-        rl.close()
-        process.exit(0)
-      }
-    }
+  add(item) {
   }
 }
 
 class Character {
-  constructor({ name, animations = [] }) {
+  constructor({ game, name, animations = [] }) {
+    this.game = game;
     this.name = name;
     this.animations = animations;
   }
@@ -164,10 +180,10 @@ class Character {
   }
 
   async say(words) {
-    game.queue.push(async () => {
+    this.game.queue.push(async () => {
       console.log(`${this.name}: ${words}`)
     })
-    wait(.5)
+    this.game.wait(.5)
   }
 }
 
@@ -186,5 +202,4 @@ class Animation {
   forever() { return this }
 }
 
-
-Game.run('house')
+(new TerminalGame(gameLogic)).start()
